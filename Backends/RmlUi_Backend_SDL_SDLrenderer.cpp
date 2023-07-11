@@ -62,8 +62,23 @@ bool Backend::Initialize(const char* window_name, int width, int height, bool al
 	// Submit click events when focusing the window.
 	SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
 
-	const Uint32 window_flags = (allow_resize ? SDL_WINDOW_RESIZABLE : 0);
-	SDL_Window* window = SDL_CreateWindow(window_name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, window_flags);
+	Uint32 window_flags = (allow_resize ? SDL_WINDOW_RESIZABLE : 0);
+	int window_width = width;
+	int window_height = height;
+
+#if defined(__APPLE__)
+	window_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+	SDL_DisplayMode vmode;
+	SDL_DisplayMode mode;
+	SDL_GetCurrentDisplayMode(0, &vmode);
+	SDL_GetDisplayMode(0, 0, &mode);
+	int dpi = mode.w / vmode.w;
+	if (dpi > 1) {
+		window_width /= dpi;
+		window_height /= dpi;
+	}
+#endif
+	SDL_Window* window = SDL_CreateWindow(window_name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, window_width, window_height, window_flags);
 	if (!window)
 	{
 		Rml::Log::Message(Rml::Log::LT_ERROR, "SDL error on create window: %s\n", SDL_GetError());

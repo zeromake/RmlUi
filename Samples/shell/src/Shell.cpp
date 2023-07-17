@@ -34,6 +34,14 @@
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Input.h>
 #include <RmlUi/Debugger.h>
+#include <filesystem>
+#ifdef _WIN32
+#include <io.h>
+#define access _access
+#define F_OK 0
+#else
+#include <unistd.h>
+#endif
 
 static Rml::UniquePtr<ShellFileInterface> file_interface;
 
@@ -56,6 +64,23 @@ void Shell::Shutdown()
 	file_interface.reset();
 }
 
+const static Rml::Array<Rml::String, 3> fontExts = {
+    ".ttc",
+    ".ttf",
+    ".otf",
+};
+
+static void loadFontsExist(Rml::Vector<Rml::String> fontPaths) {
+	for (auto &fontPath: fontPaths) {
+		for (auto &fontExt: fontExts) {
+			Rml::String fullPath = fontPath + fontExt;
+			if (access(fullPath.c_str(), F_OK) != -1) {
+				Rml::LoadFontFace(fullPath, true);
+			}
+		}
+	}
+}
+
 void Shell::LoadFonts()
 {
 	const Rml::String directory = "assets/";
@@ -74,6 +99,24 @@ void Shell::LoadFonts()
 
 	for (const FontFace& face : font_faces)
 		Rml::LoadFontFace(directory + face.filename, face.fallback_face);
+#if defined(__APPLE__)
+    Rml::Vector<Rml::String> simplifiedChineseFonts = {
+        "/System/Library/Fonts/PingFang",
+    };
+#elif defined(_WIN32)
+	Rml::Vector<Rml::String> simplifiedChineseFonts = {
+		"C:\\Windows\\Fonts\\msyh",
+	};
+#elif defined(ANDROID)
+	Rml::Vector<Rml::String> simplifiedChineseFonts = {
+		"/system/fonts/NotoSerifCJK-Regular",
+        "/system/fonts/NotoSansCJK-Regular",
+        "/system/fonts/NotoSansSC-Regular",
+        "/system/fonts/DroidSansFallback",
+        "/system/fonts/DroidSansChinese",
+    };
+#endif
+	loadFontsExist(simplifiedChineseFonts);
 }
 
 bool Shell::ProcessKeyDownShortcuts(Rml::Context* context, Rml::Input::KeyIdentifier key, int key_modifier, float native_dp_ratio, bool priority)
@@ -98,21 +141,23 @@ bool Shell::ProcessKeyDownShortcuts(Rml::Context* context, Rml::Input::KeyIdenti
 		}
 		else if (key == Rml::Input::KI_0 && key_modifier & Rml::Input::KM_CTRL)
 		{
-			context->SetDensityIndependentPixelRatio(native_dp_ratio);
+			context->SetDensityIndependentPixelRatio(1.0f, 1);
 		}
 		else if (key == Rml::Input::KI_1 && key_modifier & Rml::Input::KM_CTRL)
 		{
-			context->SetDensityIndependentPixelRatio(1.f);
+			const float dp_ratio = context->GetDensityIndependentPixelRatio();
+			const float prev_dp_ratio = context->GetDensityIndependentPixelRatio(1);
+			context->SetDensityIndependentPixelRatio(1.0f / dp_ratio * prev_dp_ratio, 1);
 		}
 		else if ((key == Rml::Input::KI_OEM_MINUS || key == Rml::Input::KI_SUBTRACT) && key_modifier & Rml::Input::KM_CTRL)
 		{
-			const float new_dp_ratio = Rml::Math::Max(context->GetDensityIndependentPixelRatio() / 1.2f, 0.5f);
-			context->SetDensityIndependentPixelRatio(new_dp_ratio);
+			const float new_dp_ratio = Rml::Math::Max(context->GetDensityIndependentPixelRatio(1) / 1.2f, 0.5f);
+			context->SetDensityIndependentPixelRatio(new_dp_ratio , 1);
 		}
 		else if ((key == Rml::Input::KI_OEM_PLUS || key == Rml::Input::KI_ADD) && key_modifier & Rml::Input::KM_CTRL)
 		{
-			const float new_dp_ratio = Rml::Math::Min(context->GetDensityIndependentPixelRatio() * 1.2f, 2.5f);
-			context->SetDensityIndependentPixelRatio(new_dp_ratio);
+			const float new_dp_ratio = Rml::Math::Min(context->GetDensityIndependentPixelRatio(1) * 1.2f, 2.5f);
+			context->SetDensityIndependentPixelRatio(new_dp_ratio, 1);
 		}
 		else
 		{

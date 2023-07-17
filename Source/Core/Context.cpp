@@ -55,7 +55,7 @@ static constexpr float DOUBLE_CLICK_MAX_DIST = 3.f; // [dp]
 static constexpr float UNIT_SCROLL_LENGTH = 80.f;   // [dp]
 
 Context::Context(const String& name) :
-	name(name), dimensions(0, 0), density_independent_pixel_ratio(1.0f), mouse_position(0, 0), clip_origin(-1, -1), clip_dimensions(-1, -1),
+	name(name), dimensions(0, 0), density_independent_pixel_ratios({1.0f, 1.0f}), mouse_position(0, 0), clip_origin(-1, -1), clip_dimensions(-1, -1),
 	next_update_timeout(0)
 {
 	instancer = nullptr;
@@ -151,11 +151,15 @@ Vector2i Context::GetDimensions() const
 	return dimensions;
 }
 
-void Context::SetDensityIndependentPixelRatio(float _density_independent_pixel_ratio)
+void Context::SetDensityIndependentPixelRatio(float _density_independent_pixel_ratio, int index)
 {
+	if (density_independent_pixel_ratios.size() < index + 1) {
+		density_independent_pixel_ratios.push_back(1.0f);
+	}
+	float density_independent_pixel_ratio = density_independent_pixel_ratios[index];
 	if (density_independent_pixel_ratio != _density_independent_pixel_ratio)
 	{
-		density_independent_pixel_ratio = _density_independent_pixel_ratio;
+		density_independent_pixel_ratios[index] = _density_independent_pixel_ratio;
 
 		for (int i = 0; i < root->GetNumChildren(true); ++i)
 		{
@@ -169,9 +173,17 @@ void Context::SetDensityIndependentPixelRatio(float _density_independent_pixel_r
 	}
 }
 
-float Context::GetDensityIndependentPixelRatio() const
+float Context::GetDensityIndependentPixelRatio(int index) const
 {
-	return density_independent_pixel_ratio;
+	float result = 1.0f;
+	if (index < 0) {
+		for (auto &it: density_independent_pixel_ratios) {
+			result *= it;
+		}
+	} else if (density_independent_pixel_ratios.size() >= index+1) {
+		return density_independent_pixel_ratios[index];
+	}
+	return result;
 }
 
 bool Context::Update()
@@ -179,6 +191,7 @@ bool Context::Update()
 	RMLUI_ZoneScoped;
 
 	next_update_timeout = std::numeric_limits<double>::infinity();
+	float density_independent_pixel_ratio = GetDensityIndependentPixelRatio();
 
 	if (scroll_controller->Update(mouse_position, density_independent_pixel_ratio))
 		RequestNextUpdate(0);
@@ -619,6 +632,7 @@ bool Context::ProcessMouseButtonDown(int button_index, int key_modifier_state)
 	GenerateKeyModifierEventParameters(parameters, key_modifier_state);
 
 	bool propagate = true;
+	float density_independent_pixel_ratio = GetDensityIndependentPixelRatio();
 
 	if (button_index == 0)
 	{
@@ -823,6 +837,7 @@ bool Context::ProcessMouseWheel(Vector2f wheel_delta, int key_modifier_state)
 	if (!hover->DispatchEvent(EventId::Mousescroll, scroll_parameters))
 		return false;
 
+	const float density_independent_pixel_ratio = GetDensityIndependentPixelRatio();
 	const float unit_scroll_length = UNIT_SCROLL_LENGTH * density_independent_pixel_ratio;
 	const Vector2f scroll_length = wheel_delta * unit_scroll_length;
 	Element* target = hover->GetClosestScrollableContainer();
@@ -1065,6 +1080,7 @@ void Context::UpdateHoverChain(Vector2i old_mouse_position, int key_modifier_sta
 	Dictionary local_parameters, local_drag_parameters;
 	Dictionary& parameters = out_parameters ? *out_parameters : local_parameters;
 	Dictionary& drag_parameters = out_drag_parameters ? *out_drag_parameters : local_drag_parameters;
+	float density_independent_pixel_ratio = GetDensityIndependentPixelRatio();
 
 	// Generate the parameters for the mouse events (there could be a few!).
 	GenerateMouseEventParameters(parameters);

@@ -33,8 +33,6 @@
 #include <RmlUi/Core/SystemInterface.h>
 #include <SDL.h>
 
-static int dpi = 1;
-
 SystemInterface_SDL::SystemInterface_SDL()
 {
 	cursor_default = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
@@ -44,13 +42,6 @@ SystemInterface_SDL::SystemInterface_SDL()
 	cursor_cross = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
 	cursor_text = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
 	cursor_unavailable = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NO);
-#if defined(__APPLE__)
-	SDL_DisplayMode vmode;
-	SDL_DisplayMode mode;
-	SDL_GetCurrentDisplayMode(0, &vmode);
-	SDL_GetDisplayMode(0, 0, &mode);
-	dpi = mode.w / vmode.w;
-#endif
 }
 
 SystemInterface_SDL::~SystemInterface_SDL()
@@ -116,10 +107,13 @@ void SystemInterface_SDL::GetClipboardText(Rml::String& text)
 bool RmlSDL::InputEventHandler(Rml::Context* context, SDL_Event& ev)
 {
 	bool result = true;
+	float dpiRatio = context->GetDensityIndependentPixelRatio(0);
 
 	switch (ev.type)
 	{
-	case SDL_MOUSEMOTION: result = context->ProcessMouseMove(ev.motion.x * dpi, ev.motion.y * dpi, GetKeyModifierState()); break;
+	case SDL_MOUSEMOTION:
+		result = context->ProcessMouseMove(ev.motion.x * dpiRatio, ev.motion.y * dpiRatio, GetKeyModifierState());
+		break;
 	case SDL_MOUSEBUTTONDOWN:
 		result = context->ProcessMouseButtonDown(ConvertMouseButton(ev.button.button), GetKeyModifierState());
 		SDL_CaptureMouse(SDL_TRUE);
@@ -142,7 +136,7 @@ bool RmlSDL::InputEventHandler(Rml::Context* context, SDL_Event& ev)
 		{
 		case SDL_WINDOWEVENT_SIZE_CHANGED:
 		{
-			Rml::Vector2i dimensions(ev.window.data1, ev.window.data2);
+			Rml::Vector2i dimensions(ev.window.data1 * dpiRatio, ev.window.data2 * dpiRatio);
 			context->SetDimensions(dimensions);
 		}
 		break;

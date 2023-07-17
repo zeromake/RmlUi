@@ -49,6 +49,8 @@ struct BackendData {
 	SDL_Renderer* renderer = nullptr;
 
 	bool running = true;
+	float dp_ratio = 1.0f;
+	bool context_dimensions_dirty = true;
 };
 static Rml::UniquePtr<BackendData> data;
 
@@ -66,25 +68,13 @@ bool Backend::Initialize(const char* window_name, int width, int height, bool al
 	int window_width = width;
 	int window_height = height;
 
-#if defined(__APPLE__)
 	window_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
-	SDL_DisplayMode vmode;
-	SDL_DisplayMode mode;
-	SDL_GetCurrentDisplayMode(0, &vmode);
-	SDL_GetDisplayMode(0, 0, &mode);
-	int dpi = mode.w / vmode.w;
-	if (dpi > 1) {
-		window_width /= dpi;
-		window_height /= dpi;
-	}
-#endif
 	SDL_Window* window = SDL_CreateWindow(window_name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, window_width, window_height, window_flags);
 	if (!window)
 	{
 		Rml::Log::Message(Rml::Log::LT_ERROR, "SDL error on create window: %s\n", SDL_GetError());
 		return false;
 	}
-
 	/*
 	 * Force a specific back-end
 	SDL_SetHint(SDL_HINT_RENDER_BATCHING, "1");
@@ -102,6 +92,14 @@ bool Backend::Initialize(const char* window_name, int width, int height, bool al
 
 	data->window = window;
 	data->renderer = renderer;
+#ifdef __APPLE__
+	SDL_DisplayMode vmode;
+	SDL_DisplayMode mode;
+	SDL_GetCurrentDisplayMode(0, &vmode);
+	SDL_GetDisplayMode(0, 0, &mode);
+	float dpi = (float)mode.w / (float)vmode.w;
+	data->dp_ratio = dpi;
+#endif
 
 	data->system_interface.SetWindow(window);
 
@@ -141,6 +139,14 @@ Rml::RenderInterface* Backend::GetRenderInterface()
 bool Backend::ProcessEvents(Rml::Context* context, KeyDownCallback key_down_callback, bool power_save)
 {
 	RMLUI_ASSERT(data && context);
+	if (data->context_dimensions_dirty)
+	{
+		data->context_dimensions_dirty = false;
+		Rml::Vector2i window_size;
+        SDL_GetWindowSizeInPixels(data->window, &window_size.x, &window_size.y);
+		context->SetDimensions(window_size);
+		context->SetDensityIndependentPixelRatio(data->dp_ratio);
+	}
 
 	bool result = data->running;
 	SDL_Event ev;
@@ -163,7 +169,7 @@ bool Backend::ProcessEvents(Rml::Context* context, KeyDownCallback key_down_call
 		{
 			const Rml::Input::KeyIdentifier key = RmlSDL::ConvertKey(ev.key.keysym.sym);
 			const int key_modifier = RmlSDL::GetKeyModifierState();
-			const float native_dp_ratio = 1.f;
+			const float native_dp_ratio = data->dp_ratio;
 
 			// See if we have any global shortcuts that take priority over the context.
 			if (key_down_callback && !key_down_callback(context, key, key_modifier, native_dp_ratio, true))

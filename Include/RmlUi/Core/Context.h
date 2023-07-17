@@ -76,10 +76,10 @@ public:
 
 	/// Changes the size ratio of 'dp' unit to 'px' unit
 	/// @param[in] dp_ratio The new density-independent pixel ratio of the context.
-	void SetDensityIndependentPixelRatio(float density_independent_pixel_ratio);
+	void SetDensityIndependentPixelRatio(float density_independent_pixel_ratio, int index = 0);
 	/// Returns the size ratio of 'dp' unit to 'px' unit
 	/// @return The current density-independent pixel ratio of the context.
-	float GetDensityIndependentPixelRatio() const;
+	float GetDensityIndependentPixelRatio(int index = -1) const;
 
 	/// Updates all elements in the context's documents.
 	/// This must be called before Context::Render, but after any elements have been changed, added or removed.
@@ -305,7 +305,7 @@ protected:
 private:
 	String name;
 	Vector2i dimensions;
-	float density_independent_pixel_ratio;
+	Vector<float> density_independent_pixel_ratios;
 	String documents_base_tag = "body";
 
 	SmallUnorderedSet<String> active_themes;
